@@ -5,6 +5,7 @@ import json
 import time
 import csv
 import os.path
+import webbrowser
 
 
 class TraktImporter(object):
@@ -131,7 +132,7 @@ class TraktImporter(object):
         page = 1
 
         while page <= page_limit:
-            request = Request(self.api_root + '/sync/' + list_name + '/movies?page={0}&limit=10'.format(page),
+            request = Request(self.api_root + '/sync/' + list_name + '/all?page={0}'.format(page),
                               headers=headers)
             try:
                 response = urlopen(request)
@@ -154,13 +155,29 @@ class TraktImporter(object):
 
     @staticmethod
     def __extract_fields(movies):
-        return [{
-            'WatchedDate': x['watched_at'] if ('watched_at' in x) else '',
-            'tmdbID': x['movie']['ids']['tmdb'],
-            'imdbID': x['movie']['ids']['imdb'],
-            'Title': x['movie']['title'],
-            'Year': x['movie']['year'],
-            } for x in movies]
+        extracted_data = []
+        for item in movies:
+            if item['type'] == 'movie':
+                extracted_data.append({
+                    'WatchedDate': item.get('watched_at', ''),
+                    'tmdbID': item['movie']['ids']['tmdb'],
+                    'imdbID': item['movie']['ids']['imdb'],
+                    'Title': item['movie']['title'],
+                    'Year': item['movie']['year'],
+                    'Title Show': "movie"
+                })
+            else:
+                extracted_data.append({
+                    'WatchedDate': item.get('watched_at', ''),
+                    'tmdbID': item['episode']['ids']['tmdb'],
+                    'imdbID': item['episode']['ids']['imdb'],
+                    'Title': item['episode']['title'],
+                    'Year': item['show']['year'],
+                    'Title Show': item['show']['title']
+                })
+        return extracted_data
+
+    
 
 def write_csv(history, filename):
     """ Write Letterboxd format CSV """
@@ -181,16 +198,10 @@ def run():
     importer = TraktImporter()
     if importer.authenticate():
         history = importer.get_movie_list('history')
-        watchlist = importer.get_movie_list('watchlist')
-        if write_csv(history, "trakt-exported-history.csv"):
-            print("\nYour history has been exported and saved to the file 'trakt-exported-history.csv'.")
+        if write_csv(history, "trakt-exported-history-shows.csv"):
+            print("\nYour history has been exported and saved to the file 'trakt-exported-history.csv-shows'.")
         else:
             print("\nEmpty results, nothing to generate.")
-
-        if write_csv(watchlist, "trakt-exported-watchlist.csv"):
-            print("\nYour watchlist has been exported and saved to the file 'trakt-exported-watchlist.csv'.")
-        else:
-            print("\nEmpty results, nothing to generate.")
-
+        webbrowser.open('https://letterboxd.com/import/', new=2)
 if __name__ == '__main__':
     run()
